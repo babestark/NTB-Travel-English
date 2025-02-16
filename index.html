@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NTB Travel English Quiz</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background-color: #f8f8f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    h1 {
+      margin: 20px;
+    }
+    .container {
+      max-width: 800px;
+      width: 100%;
+      padding: 20px;
+      background: #fff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      margin: 20px;
+    }
+    .selection {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .selection button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #333;
+      color: #fff;
+      font-weight: bold;
+      transition: background 0.3s ease;
+      margin-bottom: 5px;
+    }
+    .selection button:hover {
+      background-color: #666;
+    }
+
+    #quizArea {
+      margin-top: 20px;
+      min-height: 300px;
+      position: relative;
+    }
+    #currentSet {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #question {
+      line-height: 1.6;
+      min-height: 80px;
+      margin-bottom: 15px;
+    }
+    /* 문제 글자체 더 크게 */
+    #question p {
+      font-size: 1.2rem;
+    }
+
+    #translation {
+      margin-top: 15px;
+      padding: 10px;
+      border-left: 4px solid #3498DB;
+      background: #f0f0f0;
+      min-height: 60px;
+      font-size: 1rem;
+    }
+    #controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+    /* Customized buttons */
+    /* 빨간색 작은 버튼 */
+    #answerBtn {
+      background-color: red;
+      color: #fff;
+      padding: 5px 10px;
+      font-size: 0.9rem;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+    /* 파란색 폭 넓은 버튼 */
+    #nextBtn {
+      background-color: #007bff;
+      color: #fff;
+      padding: 12px 30px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+    #controls button:hover {
+      opacity: 0.8;
+    }
+
+    .correct {
+      background-color: #b4f8b4 !important;
+    }
+    .incorrect {
+      background-color: #f8b4b4 !important;
+    }
+    #resultMessage {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    #retestArea {
+      margin-top: 20px;
+      text-align: center;
+    }
+    /* Animation for correct/incorrect feedback */
+    .animate-correct {
+      animation: correctAnim 0.5s ease;
+    }
+    .animate-incorrect {
+      animation: incorrectAnim 0.5s ease;
+    }
+    @keyframes correctAnim {
+      0% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.08);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes incorrectAnim {
+      0% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(0.92);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    /* End-of-set review styling */
+    #reviewList {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background-color: #fafafa;
+    }
+    .review-sentence {
+      margin-bottom: 12px;
+      font-size: 1rem;
+    }
+    .review-sentence span {
+      margin-left: 5px;
+      font-style: italic;
+    }
+    .review-incorrect {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>NTB Travel English Quiz</h1>
+
+  <!-- Developer's note:
+       - If code is unclear, please let us know what you expect if indexes are out-of-range.
+       - This fix ensures that we always initialize currentSetReview before showQuestion.
+    -->
+
+  <div class="container">
+    <!-- 빈칸 비율 선택 영역 -->
+    <div class="selection">
+      <button onclick="initCheck(); setBlankCoverage(0.2);">20%</button>
+      <button onclick="initCheck(); setBlankCoverage(0.5);">50%</button>
+      <button onclick="initCheck(); setBlankCoverage(0.7);">70%</button>
+      <button onclick="initCheck(); setBlankCoverage(1.0);">100%</button>
+    </div>
+
+    <div id="quizArea">
+      <div id="currentSet"></div>
+      <div id="question"></div>
+      <div id="translation"></div>
+      <div id="controls">
+        <!-- 빨간색 작은 버튼 -->
+        <button id="answerBtn" onclick="revealAnswers()">Answer</button>
+        <!-- 파란색 폭 넓은 버튼 -->
+        <button id="nextBtn" onclick="nextQuestion()">Next</button>
+      </div>
+      <div id="resultMessage"></div>
+      <div id="retestArea"></div>
+    </div>
+  </div>
+
+  <script>
+    // Test Cases:
+    // 1) Normal flow -> no error
+    // 2) Attempt coverage changes before quiz starts -> must not throw error
+    // 3) Force currentSetIndex/currentQuestionIndex out-of-range -> see logs, no crash.
+
+    const sentenceData = [
+      // 200 lines as the user requested
+      // 1. 공항 & 항공권
+      { english: "I’d like to book a flight to New York.", korean: "뉴욕행 항공권을 예약하고 싶어요." },
+      { english: "Is there a direct flight?", korean: "직항편이 있나요?" },
+      { english: "What’s the cheapest fare available?", korean: "가장 저렴한 요금이 무엇인가요?" },
+      { english: "Can I get a seat next to the aisle/window?", korean: "통로/창가 좌석으로 해주실 수 있나요?" },
+      { english: "Where is the check-in counter for this airline?", korean: "이 항공사의 체크인 카운터는 어디인가요?" },
+      { english: "Could you help me with my luggage, please?", korean: "제 짐을 좀 도와주실 수 있나요?" },
+      { english: "How many bags can I check in?", korean: "부칠 수 있는 짐은 몇 개인가요?" },
+      { english: "Do I need to pay for excess baggage?", korean: "초과 수하물 요금을 내야 하나요?" },
+      { english: "May I see your passport and ticket, please?", korean: "여권과 티켓을 보여주실 수 있나요?" },
+      { english: "Here is my passport and e-ticket.", korean: "제 여권과 전자티켓이에요." },
+      { english: "Could I have an immigration form/customs form, please?", korean: "출입국/세관 신고서 좀 주시겠어요?" },
+      { english: "Where is the boarding gate for Flight 123?", korean: "123편 탑승 게이트는 어디인가요?" },
+      { english: "When does boarding start?", korean: "탑승은 언제 시작하나요?" },
+      { english: "Is the flight on time, or is it delayed?", korean: "비행기가 제시간에 출발하나요, 아니면 지연됐나요?" },
+      { english: "Where can I find the currency exchange?", korean: "환전소는 어디에 있나요?" },
+      { english: "Where is the nearest restroom?", korean: "가장 가까운 화장실이 어디인가요?" },
+      { english: "Excuse me, I think I might be in the wrong line.", korean: "죄송한데, 제가 줄을 잘못 선 것 같아요." },
+      { english: "I have a connecting flight. Do I need to pick up my luggage here?", korean: "환승편이 있는데, 여기서 짐을 찾아야 하나요?" },
+      { english: "Where can I get my tax refund?", korean: "택스 리펀드는 어디서 받나요?" },
+      { english: "Could you speak more slowly, please?", korean: "좀 더 천천히 말씀해주실 수 있나요?" },
+      // 2. 기내에서
+      { english: "Excuse me, can I get a blanket?", korean: "담요 좀 주시겠어요?" },
+      { english: "Could I have some water, please?", korean: "물 좀 주시겠어요?" },
+      { english: "What would you like to drink? – I’ll have orange juice, please.", korean: "어떤 음료를 드시겠어요?) – (오렌지 주스 주세요." },
+      { english: "Is there a meal included in this flight?", korean: "이 비행기에 식사가 포함되어 있나요?" },
+      { english: "Do you have a vegetarian option?", korean: "채식 메뉴가 있나요?" },
+      { english: "I’m feeling airsick. Can I have some motion sickness medicine?", korean: "멀미가 나는데, 멀미약 좀 주실 수 있나요?" },
+      { english: "Could I move to another seat?", korean: "다른 좌석으로 옮겨도 될까요?" },
+      { english: "May I use the lavatory now?", korean: "지금 화장실 사용해도 될까요?" },
+      { english: "I’ll keep my seatbelt fastened.", korean: "안전벨트를 착용하고 있을게요." },
+      { english: "How long will the flight take?", korean: "비행 시간은 얼마나 걸리나요?" },
+      { english: "Could you please help me put my bag in the overhead compartment?", korean: "짐을 머리 위 짐칸에 올리는 것 좀 도와주실 수 있나요?" },
+      { english: "Excuse me, I need to get out.", korean: "실례합니다, 지나갈게요." },
+      { english: "Please set your electronic devices to airplane mode.", korean: "전자 기기를 비행기 모드로 설정해주세요." },
+      { english: "Would you like headphones? – Yes, please.", korean: "헤드폰 필요하세요?) – (네, 부탁드립니다." },
+      { english: "Could I have some hot tea/coffee?", korean: "차/커피 좀 주실 수 있나요?" },
+      { english: "Can I have an immigration card, please?", korean: "입국 신고서 좀 주실 수 있나요?" },
+      { english: "We’ll be landing shortly. Please return to your seat.", korean: "곧 착륙합니다. 좌석으로 돌아가 주세요." },
+      { english: "Is there a fee for Wi-Fi on this flight?", korean: "이 비행기에서 와이파이 사용은 유료인가요?" },
+      { english: "Where can I claim my luggage after landing?", korean: "도착 후 짐은 어디서 찾나요?" },
+      { english: "Thank you for your help.", korean: "도와주셔서 감사합니다." },
+      // 3. 입국심사 & 세관
+      { english: "What is the purpose of your visit? – I’m here for tourism/business.", korean: "방문 목적이 무엇인가요?) – (관광/출장입니다." },
+      { english: "How long will you be staying? – I’ll stay for two weeks.", korean: "얼마나 머무를 건가요?) – (2주 있을 예정입니다." },
+      { english: "Where will you be staying? – I’ll be staying at the ABC Hotel.", korean: "어디에 머무나요?) – (ABC호텔에 묵을 거예요." },
+      { english: "Do you have anything to declare?", korean: "신고할 물품이 있나요?" },
+      { english: "Please place your index finger on the scanner.", korean: "스캐너에 검지 손가락을 대주세요." },
+      { english: "Could you open your bag, please?", korean: "가방을 열어주시겠어요?" },
+      { english: "Enjoy your stay. – Thank you.", korean: "즐거운 시간 되세요.) – (감사합니다." },
+      { english: "I only have personal items.", korean: "개인 물품뿐입니다." },
+      { english: "Here’s my return ticket.", korean: "돌아가는 항공권입니다." },
+      { english: "I lost my customs form. Could I get another one?", korean: "세관 신고서를 잃어버렸는데, 다시 받을 수 있을까요?" },
+      // 4. 교통편
+      { english: "Where can I get a taxi?", korean: "택시는 어디서 탈 수 있나요?" },
+      { english: "Take me to this address, please.", korean: "이 주소로 가 주세요." },
+      { english: "How much does it cost to go downtown?", korean: "시내까지 얼마 정도 나오나요?" },
+      { english: "Could you please turn on the meter?", korean: "미터기 켜주시겠어요?" },
+      { english: "Can you drop me off at the station?", korean: "역에서 내려주실 수 있나요?" },
+      { english: "Do you accept credit cards?", korean: "신용카드 받나요?" },
+      { english: "Please wait for me here. I’ll be right back.", korean: "여기서 잠시 기다려주세요. 금방 돌아올게요." },
+      { english: "I think we’re going the wrong way.", korean: "길이 잘못된 것 같아요." },
+      { english: "Could you go a bit faster/slower, please?", korean: "좀 더 빨리/천천히 가 주실 수 있나요?" },
+      { english: "Keep the change.", korean: "거스름돈은 가지세요." },
+      { english: "Which bus goes to the city center?", korean: "어떤 버스가 시내로 가나요?" },
+      { english: "How often does the bus run?", korean: "버스는 얼마나 자주 오나요?" },
+      { english: "Does this bus stop at the museum?", korean: "이 버스가 박물관에 서나요?" },
+      { english: "One ticket to the central station, please.", korean: "중앙역까지 가는 티켓 한 장 주세요." },
+      { english: "Where can I buy a subway pass?", korean: "지하철 패스는 어디서 살 수 있나요?" },
+      { english: "Is this the right platform for the airport?", korean: "공항 가는 열차 승강장이 맞나요?" },
+      { english: "Which line do I take to get to the park?", korean: "공원에 가려면 어느 노선을 타야 하나요?" },
+      { english: "How many stops until the museum?", korean: "박물관까지 정류장이 몇 개 남았나요?" },
+      { english: "Excuse me, could you let me through?", korean: "실례합니다, 지나갈게요." },
+      { english: "Can you help me figure out the schedule?", korean: "시간표를 어떻게 보는지 좀 도와주시겠어요?" },
+      // 5. 호텔 체크인 & 숙박
+      { english: "I have a reservation under the name (Lee).", korean: "예약을 했는데, 이름은 (이)로 되어 있을 거예요." },
+      { english: "I’d like to check in, please.", korean: "체크인 부탁드립니다." },
+      { english: "Do you have any vacancies for tonight?", korean: "오늘 밤 빈방이 있나요?" },
+      { english: "Is breakfast included in the room rate?", korean: "객실 요금에 아침 식사가 포함되나요?" },
+      { english: "I’d like a non-smoking room, please.", korean: "금연 객실로 부탁드립니다." },
+      { english: "Could I have a room on a higher floor?", korean: "더 높은 층으로 방을 배정해주실 수 있나요?" },
+      { english: "Could you please store my luggage until check-in?", korean: "체크인 전까지 짐을 맡아 주실 수 있나요?" },
+      { english: "Where is the elevator?", korean: "엘리베이터는 어디에 있나요?" },
+      { english: "Could I get a wake-up call at 6 a.m.?", korean: "아침 6시에 모닝콜 좀 해주실 수 있나요?" },
+      { english: "Is there free Wi-Fi in the room?", korean: "객실에 무료 와이파이가 있나요?" },
+      { english: "I can’t connect to the internet.", korean: "인터넷 연결이 안 돼요." },
+      { english: "Could you send some extra towels to my room?", korean: "제 방에 수건을 좀 더 가져다주실 수 있나요?" },
+      { english: "I’d like to order room service, please.", korean: "룸서비스를 주문하고 싶어요." },
+      { english: "My room hasn’t been cleaned yet.", korean: "제 방이 아직 청소가 안 되어 있어요." },
+      { english: "There seems to be a problem with the air conditioner.", korean: "에어컨에 문제가 있는 것 같아요." },
+      { english: "Could you change my room, please?", korean: "방을 바꿔주실 수 있나요?" },
+      { english: "Where can I find the fitness center?", korean: "피트니스 센터는 어디 있나요?" },
+      { english: "How do I make an international call from my room?", korean: "방에서 국제전화를 어떻게 걸 수 있나요?" },
+      { english: "I’d like to extend my stay by one night.", korean: "하루 더 묵고 싶어요." },
+      { english: "I’d like to check out, please.", korean: "체크아웃 부탁드립니다." },
+      // 6. 식당 & 카페
+      { english: "A table for two, please.", korean: "2명 자리 부탁드립니다." },
+      { english: "Do you have a reservation? – No, we don’t. Is there a wait?", korean: "예약하셨나요?) – (아니요. 대기시간이 있나요?" },
+      { english: "Could we get a menu, please?", korean: "메뉴 좀 주시겠어요?" },
+      { english: "What do you recommend here?", korean: "이곳의 추천 메뉴는 무엇인가요?" },
+      { english: "Is there a vegetarian option on the menu?", korean: "메뉴에 채식 옵션이 있나요?" },
+      { english: "Can I have this dish without onions?", korean: "이 요리에 양파 빼고 해주실 수 있나요?" },
+      { english: "I have a peanut allergy.", korean: "저는 땅콩 알레르기가 있어요." },
+      { english: "Could I have some water, please?", korean: "물 좀 부탁드립니다." },
+      { english: "I’d like to order the steak, medium-rare.", korean: "스테이크 미디엄 레어로 주문할게요." },
+      { english: "Can I have separate checks, please?", korean: "계산서 따로따로 해주실 수 있나요?" },
+      { english: "Is service included?", korean: "서비스료가 포함되어 있나요?" },
+      { english: "Could I have some more bread?", korean: "빵을 좀 더 주실 수 있나요?" },
+      { english: "I’d like this to go, please.", korean: "이거 포장해주실 수 있나요?" },
+      { english: "Could we move to that table by the window?", korean: "창가 쪽 테이블로 옮겨도 될까요?" },
+      { english: "We’re in a bit of a hurry. How long will it take?", korean: "좀 급한데, 얼마나 걸리나요?" },
+      { english: "Excuse me, there is a mistake on the bill.", korean: "실례합니다. 계산서에 실수가 있는 것 같아요." },
+      { english: "Could I see the wine list?", korean: "와인 리스트 좀 볼 수 있을까요?" },
+      { english: "Everything was delicious. Thank you.", korean: "모든 게 맛있었어요. 감사합니다." },
+      { english: "Do you accept credit cards?", korean: "신용카드 받나요?" },
+      { english: "We’ll take the check now, please.", korean: "이제 계산서 부탁드립니다." },
+      // 7. 관광 & 길 찾기
+      { english: "Could you take a picture of me/us, please?", korean: "저/저희 사진 좀 찍어주시겠어요?" },
+      { english: "Where can I buy tickets for the museum?", korean: "박물관 입장권은 어디에서 살 수 있나요?" },
+      { english: "Is this place within walking distance?", korean: "이곳이 걸어서 갈 만한 거리에 있나요?" },
+      { english: "How far is it from here?", korean: "여기서 얼마나 먼가요?" },
+      { english: "Could you show me on the map?", korean: "지도에서 알려주실 수 있나요?" },
+      { english: "I’m looking for a souvenir shop.", korean: "기념품 가게를 찾고 있어요." },
+      { english: "Is there a tour guide available in English?", korean: "영어로 안내해주는 투어 가이드가 있나요?" },
+      { english: "What time does the museum open/close?", korean: "박물관은 몇 시에 열고 닫나요?" },
+      { english: "Where can I find the information desk?", korean: "안내 데스크는 어디 있나요?" },
+      { english: "Is photography allowed here?", korean: "여기에서 사진 촬영이 가능한가요?" },
+      { english: "Where can I rent a car/bike?", korean: "렌터카/자전거는 어디서 빌릴 수 있나요?" },
+      { english: "Can you recommend a good local restaurant?", korean: "현지 맛집 좀 추천해주실 수 있나요?" },
+      { english: "Is there an entrance fee for this attraction?", korean: "이 명소는 입장료가 있나요?" },
+      { english: "How long does the tour take?", korean: "투어가 얼마나 걸리나요?" },
+      { english: "Are there any discounts for students/seniors?", korean: "학생/노인 할인이 있나요?" },
+      { english: "Where can I see a traditional performance?", korean: "전통 공연을 어디서 볼 수 있나요?" },
+      { english: "Which direction is the main square?", korean: "메인 광장은 어느 쪽 방향인가요?" },
+      { english: "I’d like to hire a private guide.", korean: "개인 가이드를 고용하고 싶어요." },
+      { english: "Can I get a city map, please?", korean: "도시 지도를 받을 수 있을까요?" },
+      { english: "Where can I buy a local SIM card?", korean: "현지 SIM 카드는 어디서 살 수 있나요?" },
+      // 8. 쇼핑
+      { english: "How much is this?", korean: "이거 얼마예요?" },
+      { english: "Do you have this in a different size/color?", korean: "이거 다른 사이즈/색상 있나요?" },
+      { english: "Can I try this on?", korean: "이거 입어봐도 되나요?" },
+      { english: "Where is the fitting room?", korean: "피팅룸(탈의실)은 어디인가요?" },
+      { english: "I’m just looking, thank you.", korean: "그냥 구경 중이에요, 감사합니다." },
+      { english: "Do you have any discount/coupons?", korean: "할인이나 쿠폰이 있나요?" },
+      { english: "Is this on sale?", korean: "이거 세일 중인가요?" },
+      { english: "Can you give me a better price?", korean: "좀 더 싸게 해주실 수 있나요?" },
+      { english: "I’ll take it.", korean: "이걸로 살게요." },
+      { english: "I’d like to return/exchange this item.", korean: "이 물건을 반품/교환하고 싶어요." },
+      { english: "I think this is defective.", korean: "불량품인 것 같아요." },
+      { english: "Where can I pay for these?", korean: "이거 어디서 계산하나요?" },
+      { english: "Cash or card? – Card, please.", korean: "현금이세요, 카드이세요?) – (카드로 할게요." },
+      { english: "Could I get a receipt, please?", korean: "영수증을 받을 수 있을까요?" },
+      { english: "Can you ship this to my home address?", korean: "이걸 제 집 주소로 배송해주실 수 있나요?" },
+      { english: "Do you offer international shipping?", korean: "국제 배송이 가능하나요?" },
+      { english: "Is there a tax refund for tourists here?", korean: "여기서 관광객 택스 리펀드를 받을 수 있나요?" },
+      { english: "What’s your return policy?", korean: "반품 정책이 어떻게 되나요?" },
+      { english: "It’s too expensive. I’ll think about it.", korean: "너무 비싸네요. 좀 더 생각해 볼게요." },
+      { english: "Do you sell local handicrafts or souvenirs?", korean: "현지 수공예품이나 기념품을 파시나요?" },
+      // 9. 긴급 상황 & 병원
+      { english: "I need help.", korean: "도움이 필요해요." },
+      { english: "Call the police, please!", korean: "경찰을 불러주세요!" },
+      { english: "Call an ambulance!", korean: "구급차를 불러주세요!" },
+      { english: "I lost my passport.", korean: "여권을 잃어버렸어요." },
+      { english: "Where is the nearest police station?", korean: "가장 가까운 경찰서는 어디인가요?" },
+      { english: "I need to see a doctor.", korean: "의사를 봐야 해요." },
+      { english: "It’s an emergency.", korean: "응급 상황이에요." },
+      { english: "I have a fever and a headache.", korean: "열이 나고 두통이 있어요." },
+      { english: "I need a prescription for this medicine.", korean: "이 약을 처방받아야 해요." },
+      { english: "I’ve been injured.", korean: "다쳤어요." },
+      { english: "I’m allergic to penicillin.", korean: "페니실린에 알레르기가 있어요." },
+      { english: "Can you recommend an English-speaking doctor?", korean: "영어를 하는 의사를 소개해주실 수 있나요?" },
+      { english: "I need travel insurance documents.", korean: "여행자 보험 서류가 필요해요." },
+      { english: "My wallet was stolen.", korean: "지갑을 도난당했어요." },
+      { english: "Where is the emergency exit?", korean: "비상구는 어디인가요?" },
+      { english: "Please help me contact my embassy.", korean: "대사관에 연락할 수 있게 도와주세요." },
+      { english: "I’m having trouble breathing.", korean: "숨 쉬기가 힘들어요." },
+      { english: "Could you call a taxi to the hospital?", korean: "병원까지 가는 택시를 불러주실 수 있나요?" },
+      { english: "I’m feeling much better now.", korean: "이제 훨씬 나아졌어요." },
+      { english: "Where can I buy first-aid supplies?", korean: "응급처치 용품은 어디서 살 수 있나요?" },
+      // 10. 간단한 대화 & 기타
+      { english: "How’s the weather today?", korean: "오늘 날씨가 어때요?" },
+      { english: "It’s my first time visiting here.", korean: "여기 처음 와봐요." },
+      { english: "Do you have any recommendations for sightseeing?", korean: "관광할 만한 곳 추천해주시겠어요?" },
+      { english: "That’s wonderful!", korean: "정말 멋지네요!" },
+      { english: "I’m here on vacation/business.", korean: "저는 휴가/출장으로 왔어요." },
+      { english: "Could you speak more slowly, please?", korean: "좀 더 천천히 말씀해주실 수 있나요?" },
+      { english: "I don’t understand. Could you repeat that?", korean: "잘 모르겠어요. 다시 한 번 말씀해주시겠어요?" },
+      { english: "Where can I exchange currency?", korean: "어디서 환전할 수 있나요?" },
+      { english: "Is there a convenience store nearby?", korean: "근처에 편의점이 있나요?" },
+      { english: "I’m looking forward to this trip.", korean: "이번 여행이 기대돼요." },
+      { english: "Thank you for your kindness.", korean: "친절에 감사드립니다." },
+      { english: "No problem / You’re welcome.", korean: "별말씀을요." },
+      { english: "Excuse me, can you take me a photo here?", korean: "실례하지만, 여기서 사진 좀 찍어주실래요?" },
+      { english: "I love this place!", korean: "여기 정말 좋아요!" },
+      { english: "Could I charge my phone here?", korean: "여기서 제 휴대폰을 충전해도 될까요?" },
+      { english: "Where is the tourist information center?", korean: "관광 안내소는 어디에 있나요?" },
+      { english: "Do you speak Korean/English?", korean: "한국어/영어를 하실 줄 아세요?" },
+      { english: "I’m not sure how to say this in English.", korean: "영어로 어떻게 말해야 할지 잘 모르겠어요." },
+      { english: "Have a great day!", korean: "좋은 하루 되세요!" },
+      { english: "I’m very grateful for all your help.", korean: "도움 주셔서 정말 감사해요." },
+      // 11. 결제 & 환전
+      { english: "I’d like to withdraw some cash.", korean: "현금을 인출하고 싶어요." },
+      { english: "Where is the nearest ATM?", korean: "가장 가까운 ATM은 어디인가요?" },
+      { english: "What’s the exchange rate for dollars to euros?", korean: "달러를 유로로 바꿀 때 환율이 어떻게 되나요?" },
+      { english: "I’d like to exchange 300 dollars.", korean: "300달러를 환전하고 싶어요." },
+      { english: "Do you charge a commission fee?", korean: "수수료가 있나요?" },
+      { english: "I’ll pay in cash/card.", korean: "현금/카드로 결제할게요." },
+      { english: "Could you give me small bills?", korean: "잔돈을 좀 더 작은 지폐로 주실 수 있나요?" },
+      { english: "I only have a credit card. Is that okay?", korean: "신용카드밖에 없는데, 괜찮나요?" },
+      { english: "My card was declined. Could you try again?", korean: "카드 결제가 거절됐어요. 다시 시도해주실 수 있나요?" },
+      { english: "I lost my card. Can I call to cancel it?", korean: "카드를 잃어버렸는데, 분실신고 전화 좀 할 수 있을까요?" }
+    ];
+
+    const SET_SIZE = 10;
+    const TOTAL_SETS = 20;
+
+    let blankCoverage = 0.2;
+    let currentSetIndex = 0;
+    let currentQuestionIndex = 0;
+    let correctCountInSet = 0;
+    let questionIsAlreadyCounted = false;
+
+    let currentSetReview = [];
+
+    // Helper to ensure we have a review array ready.
+    function initCheck() {
+      if (!currentSetReview || !currentSetReview.length) {
+        initSetReview();
+      }
+    }
+
+    function initSetReview() {
+      currentSetReview = [];
+      for (let i = 0; i < SET_SIZE; i++) {
+        currentSetReview.push({
+          original: "",
+          userInputs: [],
+          correctAnswers: [],
+          isCorrectArray: []
+        });
+      }
+    }
+
+    function showQuestion() {
+      // Defensive check
+      if (currentQuestionIndex < 0 || currentQuestionIndex >= SET_SIZE) {
+        console.error("showQuestion: currentQuestionIndex out of range.");
+        return;
+      }
+      if (!currentSetReview[currentQuestionIndex]) {
+        console.error("showQuestion: currentSetReview[" + currentQuestionIndex + "] is undefined.");
+        return;
+      }
+
+      const sentenceIndex = currentSetIndex * SET_SIZE + currentQuestionIndex;
+      if (sentenceIndex >= sentenceData.length) {
+        document.getElementById('question').innerHTML = "<p>All sets completed! Congratulations!</p>";
+        document.getElementById('translation').innerHTML = "";
+        document.getElementById('controls').style.display = 'none';
+        document.getElementById('currentSet').textContent = "";
+        return;
+      }
+
+      document.getElementById('currentSet').textContent =
+        `Set ${currentSetIndex + 1} / Question ${currentQuestionIndex + 1} of ${SET_SIZE}`;
+
+      const { english, korean } = sentenceData[sentenceIndex];
+      const words = english.split(/\s+/);
+
+      // Re-init this question's arrays
+      currentSetReview[currentQuestionIndex].original = english;
+      currentSetReview[currentQuestionIndex].userInputs = [];
+      currentSetReview[currentQuestionIndex].correctAnswers = [];
+      currentSetReview[currentQuestionIndex].isCorrectArray = [];
+
+      const totalWords = words.length;
+      const blankCount = Math.floor(totalWords * blankCoverage);
+
+      const blankIndices = new Set();
+      while (blankIndices.size < blankCount) {
+        const r = Math.floor(Math.random() * totalWords);
+        blankIndices.add(r);
+      }
+
+      let questionHTML = "";
+      for (let i = 0; i < totalWords; i++) {
+        let rawWord = words[i];
+        const punctuationMatch = rawWord.match(/[.,!?;:]+$/);
+        let punctuation = "";
+        let core = rawWord;
+        if (punctuationMatch) {
+          punctuation = punctuationMatch[0];
+          core = rawWord.slice(0, rawWord.length - punctuationMatch[0].length);
+        }
+        if (blankIndices.has(i)) {
+          questionHTML += `<input type="text" data-answer="${core}" size="${Math.max(core.length, 4)}"/>${punctuation} `;
+        } else {
+          questionHTML += `${rawWord} `;
+        }
+      }
+
+      document.getElementById('question').innerHTML = `<p>${questionHTML.trim()}</p>`;
+      document.getElementById('translation').innerHTML = `<p>${korean}</p>`;
+
+      document.getElementById('resultMessage').textContent = "";
+      document.getElementById('retestArea').innerHTML = "";
+      questionIsAlreadyCounted = false;
+    }
+
+    function setBlankCoverage(value) {
+      blankCoverage = value;
+      showQuestion();
+    }
+
+    function checkUserAnswers() {
+      const inputs = document.querySelectorAll('#question input[type="text"]');
+      let allCorrect = true;
+
+      const reviewItem = currentSetReview[currentQuestionIndex];
+      const isCorrectArray = [];
+      let idx = 0;
+      inputs.forEach(input => {
+        const correctAnswer = input.getAttribute('data-answer');
+        const userVal = input.value.trim();
+        reviewItem.userInputs[idx] = userVal;
+        reviewItem.correctAnswers[idx] = correctAnswer;
+        let correct = false;
+        if (userVal.toLowerCase() === correctAnswer.toLowerCase()) {
+          input.classList.remove('incorrect');
+          input.classList.add('correct');
+          correct = true;
+        } else {
+          input.classList.remove('correct');
+          input.classList.add('incorrect');
+          allCorrect = false;
+        }
+        isCorrectArray.push(correct);
+        idx++;
+      });
+      reviewItem.isCorrectArray = isCorrectArray;
+
+      return allCorrect;
+    }
+
+    function revealAnswers() {
+      if (!questionIsAlreadyCounted) {
+        questionIsAlreadyCounted = true;
+      }
+      const inputs = document.querySelectorAll('#question input[type="text"]');
+      let idx = 0;
+      const reviewItem = currentSetReview[currentQuestionIndex];
+
+      inputs.forEach(input => {
+        const correctAnswer = input.getAttribute('data-answer');
+        input.value = correctAnswer;
+        input.classList.remove('correct');
+        input.classList.add('incorrect');
+        reviewItem.userInputs[idx] = correctAnswer + " (Answer)";
+        reviewItem.correctAnswers[idx] = correctAnswer;
+        reviewItem.isCorrectArray[idx] = false;
+        idx++;
+      });
+
+      document.getElementById('resultMessage').textContent = "Answer shown. Marked as incorrect.";
+    }
+
+    function nextQuestion() {
+      const quizArea = document.getElementById('quizArea');
+      quizArea.classList.remove('animate-correct', 'animate-incorrect');
+
+      if (!questionIsAlreadyCounted) {
+        const allCorrect = checkUserAnswers();
+        if (allCorrect) {
+          correctCountInSet++;
+          document.getElementById('resultMessage').textContent = "Correct!";
+          quizArea.classList.add('animate-correct');
+        } else {
+          document.getElementById('resultMessage').textContent = "Incorrect.";
+          quizArea.classList.add('animate-incorrect');
+        }
+        questionIsAlreadyCounted = true;
+      }
+
+      setTimeout(() => {
+        currentQuestionIndex++;
+        if (currentQuestionIndex >= SET_SIZE) {
+          endSet();
+        } else {
+          showQuestion();
+        }
+      }, 600);
+    }
+
+    function endSet() {
+      const mistakes = SET_SIZE - correctCountInSet;
+      const resultMessage = document.getElementById('resultMessage');
+      resultMessage.textContent = `Set ${currentSetIndex+1} done. Correct: ${correctCountInSet}, Mistakes: ${mistakes}`;
+
+      showReview();
+
+      const retestDiv = document.getElementById('retestArea');
+      retestDiv.innerHTML = "";
+
+      if (mistakes >= 5) {
+        const tryBtn = document.createElement('button');
+        tryBtn.textContent = "Try again";
+        tryBtn.onclick = () => {
+          correctCountInSet = 0;
+          currentQuestionIndex = 0;
+          initSetReview();
+          showQuestion();
+          retestDiv.innerHTML = "";
+          resultMessage.textContent = "";
+        };
+        retestDiv.appendChild(tryBtn);
+      } else {
+        const tryBtn = document.createElement('button');
+        tryBtn.textContent = "Try again";
+        tryBtn.onclick = () => {
+          correctCountInSet = 0;
+          currentQuestionIndex = 0;
+          initSetReview();
+          showQuestion();
+          retestDiv.innerHTML = "";
+          resultMessage.textContent = "";
+        };
+        retestDiv.appendChild(tryBtn);
+
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = "Next set";
+        nextBtn.onclick = () => {
+          currentSetIndex++;
+          if (currentSetIndex >= TOTAL_SETS) {
+            resultMessage.textContent = "All 20 sets completed! Congratulations!";
+            document.getElementById('question').innerHTML = "";
+            document.getElementById('translation').innerHTML = "";
+            document.getElementById('controls').style.display = 'none';
+            retestDiv.innerHTML = "";
+            return;
+          }
+          correctCountInSet = 0;
+          currentQuestionIndex = 0;
+          initSetReview();
+          showQuestion();
+          retestDiv.innerHTML = "";
+          resultMessage.textContent = "";
+        };
+        retestDiv.appendChild(nextBtn);
+      }
+    }
+
+    function showReview() {
+      let html = `<div id='reviewList'>`;
+      html += `<h3>Review of Set ${currentSetIndex+1}</h3>`;
+
+      for (let i = 0; i < SET_SIZE; i++) {
+        const item = currentSetReview[i];
+        if (!item.original) continue;
+        let originalWords = item.original.split(/\s+/);
+
+        let idxInput = 0;
+        let reconstruct = "";
+        originalWords.forEach((rawWord) => {
+          const punctuationMatch = rawWord.match(/[.,!?;:]+$/);
+          let punctuation = "";
+          let core = rawWord;
+          if (punctuationMatch) {
+            punctuation = punctuationMatch[0];
+            core = rawWord.slice(0, rawWord.length - punctuationMatch[0].length);
+          }
+          if (idxInput < item.correctAnswers.length) {
+            const correct = item.correctAnswers[idxInput];
+            if (correct.toLowerCase() === core.toLowerCase()) {
+              const userVal = item.userInputs[idxInput];
+              const isC = item.isCorrectArray[idxInput];
+              if (isC) {
+                reconstruct += `${core}${punctuation} `;
+              } else {
+                reconstruct += `<span class='review-incorrect'>${userVal}</span> (<span>${core}</span>)${punctuation} `;
+              }
+              idxInput++;
+            } else {
+              reconstruct += `${rawWord} `;
+            }
+          } else {
+            reconstruct += `${rawWord} `;
+          }
+        });
+
+        html += `<div class='review-sentence'><strong>Q${i+1}:</strong> ${reconstruct.trim()}</div>`;
+      }
+
+      html += `</div>`;
+
+      const questionDiv = document.getElementById('question');
+      questionDiv.innerHTML = html;
+      document.getElementById('translation').innerHTML = "";
+    }
+
+    // LAUNCH
+    window.onload = () => {
+      currentSetIndex = 0;
+      currentQuestionIndex = 0;
+      correctCountInSet = 0;
+      initSetReview();
+      setBlankCoverage(0.2); // default to 20%
+    };
+  </script>
+</body>
+</html>
